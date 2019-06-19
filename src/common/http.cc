@@ -651,13 +651,6 @@ ResponseWriter::putOnWire(const char* data, size_t len)
         OUT(writeHeaders(headers_, buf_));
         OUT(writeCookies(cookies_, buf_));
 
-
-        auto connection = headers_.tryGet<Header::Connection>();
-        auto control = ConnectionControl::Close;
-
-        if (connection)
-            control = connection->control();
-
         /* @Todo @Major:
          * Correctly handle non-keep alive requests
          * Do not put Keep-Alive if version == Http::11 and request.keepAlive == true
@@ -679,30 +672,7 @@ ResponseWriter::putOnWire(const char* data, size_t len)
 
         auto fd = peer()->fd();
 
-        return transport_->asyncWrite(fd, buffer)
-         .then
-                 <
-                         std::function< Async::Promise<ssize_t>(int)>,
-                         std::function<void(std::exception_ptr&)>
-                 >
-                 (
-                         [=](int /*l*/) {
-
-                             return Async::Promise<ssize_t>( [=](Async::Deferred<ssize_t> /*deferred*/) mutable {
-
-                                 if (control == ConnectionControl::KeepAlive) return ;
-
-                                 if (fd)
-                                     close(fd);
-
-                                return ;
-                             } );
-                         },
-
-                         [=](std::exception_ptr& eptr){
-                             return Async::Promise<ssize_t>::rejected(eptr);
-                         }
-                 );
+        return transport_->asyncWrite(fd, buffer);
 
     } catch (const std::runtime_error& e) {
         return Async::Promise<ssize_t>::rejected(e);
